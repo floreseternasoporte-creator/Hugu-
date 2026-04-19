@@ -24,6 +24,7 @@ canvas{display:block;}
 #touchBtns{position:absolute;bottom:12px;right:10px;display:flex;gap:10px;align-items:flex-end;}
 .tbtn{width:52px;height:52px;border-radius:50%;border:2px solid rgba(255,255,255,0.25);background:rgba(0,0,0,0.55);color:#ccc;font:bold 8px 'Courier New';cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.3;pointer-events:all;}
 .tbtn:active{transform:scale(0.92);background:rgba(255,255,255,0.1);}
+#btnAttack{width:62px;height:62px;border-color:rgba(255,70,70,0.9);color:#ffb3b3;font-size:9px;box-shadow:0 0 12px rgba(255,70,70,0.35);}
 #btnAbility{border-color:rgba(120,80,255,0.7);color:#b39ddb;font-size:7px;}
 #btnAbility2{border-color:rgba(255,160,50,0.7);color:#ffcc80;font-size:7px;}
 </style>
@@ -36,6 +37,7 @@ canvas{display:block;}
   <div id="joyBase"><div id="joyKnob"></div></div>
 </div>
 <div id="touchBtns" style="display:none">
+  <div class="tbtn" id="btnAttack">ATACAR</div>
   <div class="tbtn" id="btnAbility2">ITEM<br>②</div>
   <div class="tbtn" id="btnAbility">PODER<br>①</div>
 </div>
@@ -483,6 +485,7 @@ let selectedChar=0;
 let totalWaves=10;
 let frameN=0;
 let trapsList=[];
+let attackHeld=false;
 
 // ── Input ──────────────────────────────────────────────
 const keys={};
@@ -514,6 +517,16 @@ joyZone.addEventListener('touchend',e=>{
 },{passive:false});
 
 // Touch ability buttons
+const btnAttack=document.getElementById('btnAttack');
+btnAttack.addEventListener('touchstart',e=>{e.preventDefault();resumeAC();attackHeld=true;},{passive:false});
+btnAttack.addEventListener('touchend',e=>{e.preventDefault();attackHeld=false;},{passive:false});
+btnAttack.addEventListener('touchcancel',e=>{e.preventDefault();attackHeld=false;},{passive:false});
+btnAttack.addEventListener('mousedown',()=>{attackHeld=true;});
+btnAttack.addEventListener('mouseup',()=>{attackHeld=false;});
+btnAttack.addEventListener('mouseleave',()=>{attackHeld=false;});
+document.addEventListener('mouseup',()=>{attackHeld=false;});
+document.addEventListener('touchend',()=>{attackHeld=false;},{passive:true});
+
 document.getElementById('btnAbility').addEventListener('touchstart',e=>{e.preventDefault();resumeAC();triggerAbility1();},{passive:false});
 document.getElementById('btnAbility').addEventListener('click',()=>triggerAbility1());
 document.getElementById('btnAbility2').addEventListener('touchstart',e=>{e.preventDefault();resumeAC();triggerAbility2();},{passive:false});
@@ -541,6 +554,14 @@ function spawnExplosion(x,y,col='#e67e22'){
   spawnParts(x,y,18,[col,'#f39c12','#fff','#e74c3c'],5,35,0.05);
 }
 function spawnHitSpark(x,y){spawnParts(x,y,5,['#fff','#ffe000'],4,12);}
+function spawnShockwave(x,y,color='#fff',rings=3,power=5){
+  for(let i=0;i<rings;i++){
+    const n=14+i*8;
+    const spd=power+i*1.8;
+    const life=16+i*6;
+    spawnParts(x,y,n,[color,'#fff'],spd,life,0.01);
+  }
+}
 
 // ════════════════════════════════════════════════════════
 //  PLAYER
@@ -589,24 +610,29 @@ function triggerAbility1(){
   const ci=player.charIdx;
   if(ci===0){// ELI - psychic shield
     player.activeShield=true;player.shieldT=240;
-    spawnParts(player.x,player.y,20,['#74b9ff','#a78bfa','#fff'],5,40);
+    spawnParts(player.x,player.y,26,['#74b9ff','#a78bfa','#fff'],5.8,44);
+    spawnShockwave(player.x,player.y,'#74b9ff',3,4.4);
   }else if(ci===1){// MIA - shadow nova
     enemies.forEach(e=>{
       if(dist(e,player)<200){
         const dmg=player.damage*3;
         e.hp-=dmg;e.hitFlash=15;
         spawnExplosion(e.x,e.y,'#9b59b6');
+        spawnParts(e.x,e.y,8,['#6c3483','#000','#fff'],4,28);
       }
     });
-    spawnParts(player.x,player.y,30,['#6c3483','#9b59b6','#a29bfe'],7,50);
+    spawnParts(player.x,player.y,38,['#6c3483','#9b59b6','#a29bfe','#fff'],7.5,58);
+    spawnShockwave(player.x,player.y,'#9b59b6',4,5.2);
   }else if(ci===2){// RAY - 8-way laser
     for(let a=0;a<Math.PI*2;a+=Math.PI/4){
       bullets.push(makeBullet(player.x,player.y,Math.cos(a)*player.bulletSpd*1.8,Math.sin(a)*player.bulletSpd*1.8,player.damage*1.5,true));
     }
-    spawnParts(player.x,player.y,25,['#1abc9c','#55efc4','#fff'],6,35);
+    spawnParts(player.x,player.y,40,['#1abc9c','#55efc4','#fff'],7.5,42);
+    spawnShockwave(player.x,player.y,'#1abc9c',3,5.8);
   }else if(ci===3){// ZARA - summon spectre
     spawnSpectre();
-    spawnParts(player.x,player.y,20,['#e74c3c','#c0392b','#fff'],5,40);
+    spawnParts(player.x,player.y,32,['#e74c3c','#c0392b','#fff'],5.8,44);
+    spawnShockwave(player.x,player.y,'#e74c3c',3,4.6);
   }
 }
 
@@ -620,23 +646,29 @@ function triggerAbility2(){
 
   const ci=player.charIdx;
   if(ci===0){// ELI - teleport
+    const oldX=player.x,oldY=player.y;
+    spawnShockwave(oldX,oldY,'#a78bfa',3,4.5);
     const pos=randomFloor();
     player.x=pos.x;player.y=pos.y;
-    spawnParts(player.x,player.y,25,['#a78bfa','#74b9ff','#fff'],5,35);
+    spawnParts(player.x,player.y,40,['#a78bfa','#74b9ff','#fff'],6.5,48);
+    spawnShockwave(player.x,player.y,'#74b9ff',3,5.5);
   }else if(ci===1){// MIA - curse/poison
     enemies.forEach(e=>{
       if(dist(e,player)<250){e.poisoned=180;e.hitFlash=10;}
     });
-    spawnParts(player.x,player.y,20,['#6c3483','#1abc9c'],4,40);
+    spawnParts(player.x,player.y,34,['#6c3483','#1abc9c','#fff'],5.5,50);
+    spawnShockwave(player.x,player.y,'#6c3483',4,4.9);
   }else if(ci===2){// RAY - quantum trap
     trapsList.push({x:player.x,y:player.y,life:600,r:24,color:'#1abc9c'});
-    spawnParts(player.x,player.y,15,['#00b894','#55efc4'],3,30);
+    spawnParts(player.x,player.y,28,['#00b894','#55efc4','#fff'],4.5,40);
+    spawnShockwave(player.x,player.y,'#00b894',3,4.2);
   }else if(ci===3){// ZARA - soul scream - stun all
     enemies.forEach(e=>{
       e.stunT=(e.stunT||0)+150;e.hitFlash=20;
-      spawnParts(e.x,e.y,8,['#e74c3c','#fff'],3,25);
+      spawnParts(e.x,e.y,12,['#e74c3c','#fff'],3.8,30);
     });
-    spawnParts(player.x,player.y,30,['#c0392b','#e74c3c','#fff'],6,50);
+    spawnParts(player.x,player.y,46,['#c0392b','#e74c3c','#fff'],7.3,56);
+    spawnShockwave(player.x,player.y,'#c0392b',4,5.2);
   }
 }
 
@@ -767,24 +799,19 @@ function updatePlayer(){
   if(mag>0){
     player.walkAnim+=0.18;
     player.facingAngle=Math.atan2(dy,dx);
-    player.facing=dx>=0?1:-1;
+    if(Math.abs(dx)>0.12)player.facing=dx>=0?1:-1;
   }
 
   // Key ability shortcuts
   if(keys['q']){keys['q']=false;triggerAbility1();}
   if(keys['e']){keys['e']=false;triggerAbility2();}
 
-  // Auto-aim shoot
+  const attackPressed=attackHeld||keys[' ']||keys['j']||keys['f']||keys['enter'];
   player.fireTimer++;
-  // Find closest enemy
-  let best=null,bd=99999;
-  enemies.forEach(e=>{const d=dist(e,player);if(d<bd){bd=d;best=e;}});
-  if(best&&player.fireTimer>=player.fireRate){
+  if(attackPressed&&player.fireTimer>=player.fireRate){
     player.fireTimer=0;
-    const ang=Math.atan2(best.y-player.y,best.x-player.x);
+    const ang=player.facingAngle;
     shootBullets(ang);
-    player.facingAngle=ang;
-    player.facing=best.x>player.x?1:-1;
     SFX.shoot();
   }
 }
@@ -1508,7 +1535,7 @@ function drawHubMain(){
 
   ctx.fillStyle='#555';ctx.font='9px monospace';ctx.textAlign='center';
   ctx.fillText('— CONTROLES: WASD / Joystick —',rpX+rpW/2,rpY+144);
-  ctx.fillText('Disparo: Automático (apunta al más cercano)',rpX+rpW/2,rpY+158);
+  ctx.fillText('Atacar: [ESPACIO / J / F] o botón ATACAR',rpX+rpW/2,rpY+158);
 
   // Main buttons
   const btnW=rpW-20,btnH=36,btnX=rpX+10;
